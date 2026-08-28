@@ -3,8 +3,9 @@
 Ein winziger GPT (Char-Level, Tiny Shakespeare) wird in PyTorch
 trainiert, und ein Dump-Skript schreibt fuer einen fest verdrahteten
 Test-Prompt JEDES Zwischenergebnis des Forward-Pass als CSV. Zweck dieses
-Projekts: ein Sprachmodell-Forward-Pass, der spaeter **ohne Bibliotheken und
-ohne Laufzeit-Interpreter** nachgerechnet wird. Die CSVs unter `reference/`
+Projekts: ein Sprachmodell-Forward-Pass, der spaeter **in Excel, vollstaendig
+in VBA** nachgerechnet wird, mit den Gewichten in Tabellenzellen — ohne
+Bibliotheken und ohne Laufzeit-Interpreter. Die CSVs unter `reference/`
 sind die Referenz, gegen die eine unabhaengige Reimplementierung Layer fuer
 Layer verglichen wird — deshalb ist nicht die Modellqualitaet der Kern,
 sondern die Nachvollziehbarkeit und Exaktheit der Konventionen.
@@ -173,3 +174,105 @@ Tabellenkalkulation mit deutscher Locale (die den Komma als Dezimaltrenner
 erwartet) muss dies entsprechend behandelt werden: sonst werden die
 `%.10e`-Werte falsch geparst (z. B. wird `1.2345678900e+00` als Zahl mit
 Tausenderpunkt statt als Fließkommazahl interpretiert).
+
+## Arbeitsmappe
+
+Nach dem Dump kommen die Gewichte in eine Excel-Arbeitsmappe. Die zwei
+zusatzlichen Kommandos in dieser Reihenfolge:
+
+```
+uv run python export_weights.py
+uv run python build_workbook.py
+```
+
+Blattaufteilung (Blattreihenfolge exakt wie in der Tabelle):
+
+| Blatt | Inhalt |
+|---|---|
+| `00_LLM` | Bedienpult — in dieser Stufe nur anlegen, leer lassen. |
+| `10_Embedding` | Token- und Positions-Embeddings (`wte`, `wpe`). |
+| `20_Layer0` | Alle 12 Tensoren von Layer 0. |
+| `30_Layer1` | Alle 12 Tensoren von Layer 1. |
+| `40_Layer2` | Alle 12 Tensoren von Layer 2. |
+| `50_Layer3` | Alle 12 Tensoren von Layer 3. |
+| `90_Output` | Finaler LayerNorm und `lm_head` (transponiert) mit Bias. |
+| `99_Meta` | Konfigurationswerte und Vokabular. |
+
+Alle benannten Bereiche sind arbeitsmappenweit (workbook scope), Grossbuchstaben,
+keine Blattpraefixe. Die 62 Bereiche in Vertragsgestaltung:
+
+| Name | Form | Quelle im state_dict |
+|---|---|---|
+| `WTE` | 65 x 128 | `transformer.wte.weight` |
+| `WPE` | 64 x 128 | `transformer.wpe.weight` |
+| `L0_LN1_W` | 1 x 128 | `transformer.h.0.ln1.weight` |
+| `L0_LN1_B` | 1 x 128 | `transformer.h.0.ln1.bias` |
+| `L0_ATTN_W` | 128 x 384 | `transformer.h.0.attn.c_attn.weight`, transponiert |
+| `L0_ATTN_B` | 1 x 384 | `transformer.h.0.attn.c_attn.bias` |
+| `L0_PROJ_W` | 128 x 128 | `transformer.h.0.attn.c_proj.weight`, transponiert |
+| `L0_PROJ_B` | 1 x 128 | `transformer.h.0.attn.c_proj.bias` |
+| `L0_LN2_W` | 1 x 128 | `transformer.h.0.ln2.weight` |
+| `L0_LN2_B` | 1 x 128 | `transformer.h.0.ln2.bias` |
+| `L0_FC_W` | 128 x 512 | `transformer.h.0.mlp.c_fc.weight`, transponiert |
+| `L0_FC_B` | 1 x 512 | `transformer.h.0.mlp.c_fc.bias` |
+| `L0_FCPROJ_W` | 512 x 128 | `transformer.h.0.mlp.c_proj.weight`, transponiert |
+| `L0_FCPROJ_B` | 1 x 128 | `transformer.h.0.mlp.c_proj.bias` |
+| `L1_LN1_W` | 1 x 128 | `transformer.h.1.ln1.weight` |
+| `L1_LN1_B` | 1 x 128 | `transformer.h.1.ln1.bias` |
+| `L1_ATTN_W` | 128 x 384 | `transformer.h.1.attn.c_attn.weight`, transponiert |
+| `L1_ATTN_B` | 1 x 384 | `transformer.h.1.attn.c_attn.bias` |
+| `L1_PROJ_W` | 128 x 128 | `transformer.h.1.attn.c_proj.weight`, transponiert |
+| `L1_PROJ_B` | 1 x 128 | `transformer.h.1.attn.c_proj.bias` |
+| `L1_LN2_W` | 1 x 128 | `transformer.h.1.ln2.weight` |
+| `L1_LN2_B` | 1 x 128 | `transformer.h.1.ln2.bias` |
+| `L1_FC_W` | 128 x 512 | `transformer.h.1.mlp.c_fc.weight`, transponiert |
+| `L1_FC_B` | 1 x 512 | `transformer.h.1.mlp.c_fc.bias` |
+| `L1_FCPROJ_W` | 512 x 128 | `transformer.h.1.mlp.c_proj.weight`, transponiert |
+| `L1_FCPROJ_B` | 1 x 128 | `transformer.h.1.mlp.c_proj.bias` |
+| `L2_LN1_W` | 1 x 128 | `transformer.h.2.ln1.weight` |
+| `L2_LN1_B` | 1 x 128 | `transformer.h.2.ln1.bias` |
+| `L2_ATTN_W` | 128 x 384 | `transformer.h.2.attn.c_attn.weight`, transponiert |
+| `L2_ATTN_B` | 1 x 384 | `transformer.h.2.attn.c_attn.bias` |
+| `L2_PROJ_W` | 128 x 128 | `transformer.h.2.attn.c_proj.weight`, transponiert |
+| `L2_PROJ_B` | 1 x 128 | `transformer.h.2.attn.c_proj.bias` |
+| `L2_LN2_W` | 1 x 128 | `transformer.h.2.ln2.weight` |
+| `L2_LN2_B` | 1 x 128 | `transformer.h.2.ln2.bias` |
+| `L2_FC_W` | 128 x 512 | `transformer.h.2.mlp.c_fc.weight`, transponiert |
+| `L2_FC_B` | 1 x 512 | `transformer.h.2.mlp.c_fc.bias` |
+| `L2_FCPROJ_W` | 512 x 128 | `transformer.h.2.mlp.c_proj.weight`, transponiert |
+| `L2_FCPROJ_B` | 1 x 128 | `transformer.h.2.mlp.c_proj.bias` |
+| `L3_LN1_W` | 1 x 128 | `transformer.h.3.ln1.weight` |
+| `L3_LN1_B` | 1 x 128 | `transformer.h.3.ln1.bias` |
+| `L3_ATTN_W` | 128 x 384 | `transformer.h.3.attn.c_attn.weight`, transponiert |
+| `L3_ATTN_B` | 1 x 384 | `transformer.h.3.attn.c_attn.bias` |
+| `L3_PROJ_W` | 128 x 128 | `transformer.h.3.attn.c_proj.weight`, transponiert |
+| `L3_PROJ_B` | 1 x 128 | `transformer.h.3.attn.c_proj.bias` |
+| `L3_LN2_W` | 1 x 128 | `transformer.h.3.ln2.weight` |
+| `L3_LN2_B` | 1 x 128 | `transformer.h.3.ln2.bias` |
+| `L3_FC_W` | 128 x 512 | `transformer.h.3.mlp.c_fc.weight`, transponiert |
+| `L3_FC_B` | 1 x 512 | `transformer.h.3.mlp.c_fc.bias` |
+| `L3_FCPROJ_W` | 512 x 128 | `transformer.h.3.mlp.c_proj.weight`, transponiert |
+| `L3_FCPROJ_B` | 1 x 128 | `transformer.h.3.mlp.c_proj.bias` |
+| `LNF_W` | 1 x 128 | `transformer.ln_f.weight` |
+| `LNF_B` | 1 x 128 | `transformer.ln_f.bias` |
+| `LM_W` | 128 x 65 | `lm_head.weight`, transponiert |
+| `LM_B` | 1 x 65 | `lm_head.bias` |
+| `CFG_N_LAYER` | 1 x 1 | Konfigurationswert (4) |
+| `CFG_N_HEAD` | 1 x 1 | Konfigurationswert (4) |
+| `CFG_N_EMBD` | 1 x 1 | Konfigurationswert (128) |
+| `CFG_HEAD_DIM` | 1 x 1 | Konfigurationswert (32) |
+| `CFG_BLOCK_SIZE` | 1 x 1 | Konfigurationswert (64) |
+| `CFG_VOCAB_SIZE` | 1 x 1 | Konfigurationswert (65) |
+| `CFG_MLP_HIDDEN` | 1 x 1 | Konfigurationswert (512) |
+| `VOCAB` | 65 x 1 | Zeile i+1 enthaelt den **Codepoint** des Zeichens zu Token-ID i |
+
+`VOCAB` haelt Zahlen, nicht Zeichen. Ein Zellwert, der mit einem Apostroph
+beginnt, wird von Excel als Textmarke verschluckt — Token 5 (`'`) kaeme leer
+zurueck, und zwar lautlos. Codepoints machen ausserdem die beiden unsichtbaren
+Eintraege lesbar: Token 0 ist der Zeilenumbruch (10), Token 1 das Leerzeichen
+(32). VBA dekodiert mit `Chr$()`.
+
+VBA adressiert die Gewichte ausschliesslich ueber diese benannten Bereiche,
+nie ueber Zelladressen — ein Umbenennen eines Bereichs bricht den Port. Die
+Arbeitsmappe wird als `.xlsm` gespeichert, damit in der naechsten Stufe
+VBA-Code hinzukommen kann.

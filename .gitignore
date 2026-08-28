@@ -5,3 +5,6 @@ data/input.txt
 data/train.bin
 data/val.bin
 export/
+# build/ — die Arbeitsmappe ist ein reproduzierbares Build-Artefakt aus
+# out/ckpt.pt und den Skripten, kein Quellcode.
+build/
