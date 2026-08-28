@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+data/input.txt
+data/train.bin
+data/val.bin
+export/
