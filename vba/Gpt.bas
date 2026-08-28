@@ -48,6 +48,15 @@ Private mTraceOn As Boolean
 Private mTraceWs As Worksheet
 Private mTraceRow As Long
 
+' Zwei optionale Haken fuer die Oberflaeche. Beide sind standardmaessig aus und
+' aendern den Rechenweg nicht -- der geprueste Pfad bleibt derselbe, egal ob
+' jemand zusieht.
+Private mCaptureOn As Boolean
+Private mCaptureLayer As Long
+Private mCaptureHead As Long
+Private mLastAttn() As Double
+Private mProgressCell As Range
+
 ' ---------------------------------------------------------------------------
 ' Laedt die Gewichte einmalig. Jeder weitere Aufruf kehrt sofort zurueck.
 Public Sub EnsureLoaded()
@@ -104,6 +113,16 @@ End Function
 Public Function VocabSize() As Long
     EnsureLoaded
     VocabSize = mVocabSize
+End Function
+
+Public Function LayerCount() As Long
+    EnsureLoaded
+    LayerCount = mNLayer
+End Function
+
+Public Function HeadCount() As Long
+    EnsureLoaded
+    HeadCount = mNHead
 End Function
 
 ' ---------------------------------------------------------------------------
@@ -178,6 +197,49 @@ Public Sub TraceEnd()
     Set mTraceWs = Nothing
 End Sub
 
+' ---------------------------------------------------------------------------
+' Merkt sich die Attention-Wahrscheinlichkeiten eines bestimmten Kopfes, damit
+' die Oberflaeche sie nach jedem Token anzeigen kann. Ohne diesen Schalter
+' faellt kein zusaetzlicher Aufwand an.
+Public Sub CaptureAttention(ByVal layerIdx As Long, ByVal headIdx As Long)
+    mCaptureLayer = layerIdx
+    mCaptureHead = headIdx
+    mCaptureOn = True
+End Sub
+
+Public Sub CaptureOff()
+    mCaptureOn = False
+End Sub
+
+' Die zuletzt gemerkte Matrix (T, T). Leer, wenn nie etwas gemerkt wurde.
+Public Function LastAttention() As Double()
+    LastAttention = mLastAttn
+End Function
+
+Public Function HasAttention() As Boolean
+    On Error Resume Next
+    HasAttention = (UBound(mLastAttn, 1) > 0)
+    On Error GoTo 0
+End Function
+
+' ---------------------------------------------------------------------------
+' Zelle, in die der Durchlauf seinen Fortschritt schreibt. Nothing schaltet es
+' ab. Die Zelle bekommt je Schicht einen kurzen Text -- vier Schreibvorgaenge
+' pro Token, das faellt neben den Matrixprodukten nicht ins Gewicht.
+Public Sub SetProgressCell(target As Range)
+    Set mProgressCell = target
+End Sub
+
+Public Sub ClearProgressCell()
+    Set mProgressCell = Nothing
+End Sub
+
+Private Sub ReportLayer(ByVal l As Long)
+    If mProgressCell Is Nothing Then Exit Sub
+    mProgressCell.Value2 = "Layer " & l & " von " & (mNLayer - 1)
+    DoEvents
+End Sub
+
 Private Sub Trace(ByVal keyName As String, m() As Double)
     Dim nr As Long, nc As Long
     If Not mTraceOn Then Exit Sub
@@ -246,6 +308,9 @@ Private Function Attention(ln1() As Double, ByVal l As Long) As Double()
 
         probs = Nn.SoftmaxRows(masked)
         Trace "L" & l & "_16_attn_probs_h" & h, probs
+        If mCaptureOn Then
+            If l = mCaptureLayer And h = mCaptureHead Then mLastAttn = probs
+        End If
 
         headOut = Mat.MatMul(probs, v)
         Trace "L" & l & "_17_head_out_h" & h, headOut
@@ -326,6 +391,7 @@ Public Function Forward(tokens() As Long) As Double()
     Trace "03_x_input", x
 
     For l = 0 To mNLayer - 1
+        ReportLayer l
         x = Block(x, l)
     Next l
 
