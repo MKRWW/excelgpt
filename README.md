@@ -14,6 +14,27 @@ Wer das fertige Modell bedienen will: **[PROMPTING.md](PROMPTING.md)** erklaert,
 Anweisungen nicht funktionieren, welche Prompts stattdessen etwas taugen und was die
 Temperatur macht.
 
+## Ausprobieren, ohne etwas zu bauen
+
+Die fertige Arbeitsmappe liegt als **[build/excelgpt.xlsm](build/excelgpt.xlsm)** im
+Repository. Herunterladen genuegt, es wird weder Python noch ein Training gebraucht.
+
+Drei Schritte, der erste ist der, an dem es sonst scheitert:
+
+1. **Datei entsperren.** Rechtsklick auf die heruntergeladene Datei, *Eigenschaften*,
+   unten *Zulassen* ankreuzen, *OK*. Excel blockiert Makros in Dateien aus dem Internet
+   seit 2022 vollstaendig — ohne diesen Schritt oeffnet die Mappe zwar, aber der Knopf
+   tut nichts, und es erscheint nur ein gelber Balken.
+2. **Oeffnen und Makros zulassen.** Die Mappe startet auf dem Bedienpult `00_LLM`.
+3. **Prompt eintragen und auf Generate druecken.** Gute Prompts stehen in
+   [PROMPTING.md](PROMPTING.md); `ROMEO:` ist ein sicherer Anfang.
+
+Vorausgesetzt wird Windows mit Excel Desktop. Die Rechnung steckt in VBA, das es in
+Excel im Browser nicht gibt.
+
+Wer lieber selbst baut, findet den Weg unter [Setup](#setup) und
+[Arbeitsmappe](#arbeitsmappe) — dann trainiert das Modell auf dem eigenen Rechner neu.
+
 ## Setup
 
 ```

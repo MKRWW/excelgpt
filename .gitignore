@@ -5,6 +5,8 @@ data/input.txt
 data/train.bin
 data/val.bin
 export/
-# build/ — die Arbeitsmappe ist ein reproduzierbares Build-Artefakt aus
-# out/ckpt.pt und den Skripten, kein Quellcode.
-build/
+# Zwischenstaende des Baus bleiben draussen. Die fertige Arbeitsmappe wird
+# bewusst mitversioniert: sie ist das Einzige, was man zum Ausprobieren
+# braucht, und der Weg dorthin verlangt Windows, Excel und ein Training.
+build/*
+!build/excelgpt.xlsm
