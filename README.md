@@ -202,6 +202,9 @@ uv run python verify_vba.py
   Zwischenergebnisse in der Arbeitsmappe aus und vergleicht jeden Tensor
   gegen `reference/`.
 
+Nach `inject_vba.py` ist die Datei fertig: man oeffnet `build/excelgpt.xlsm`,
+landet auf dem Bedienpult, traegt einen Prompt ein und drueckt Generate.
+
 Blattaufteilung (Blattreihenfolge exakt wie in der Tabelle):
 
 | Blatt | Inhalt |
@@ -322,6 +325,48 @@ gerechnet wird im Speicher, geschrieben wird einmal. Die Gewichte werden
 **einmal** geladen und gehalten; sie je Token neu zu lesen waeren 818241
 Zellzugriffe pro Schritt.
 
+## Bedienpult
+
+`00_LLM` ist das Bedienpult, alle uebrigen Blaetter sind Datenblaetter.
+
+Das gesamte Layout entsteht in `Ui.SetupSheet`, nicht von Hand. Es ist damit
+versionierbar und nach jedem Neubau identisch. Wer etwas verschieben will,
+aendert den Code, nicht die Zellen. `inject_vba.py` ruft das Makro nach dem
+Import auf.
+
+Tabelle der Bedienelemente. Auch hier gilt: angesprochen wird ueber die
+Namen, nie ueber Zelladressen:
+
+| Name | Zweck |
+|---|---|
+| `UI_PROMPT` | Der Prompt, den das Modell fortsetzt. |
+| `UI_TEMP` | Temperatur beim Ziehen: klein = braver, gross = wilder. |
+| `UI_TOKENS` | Anzahl der Zeichen, die erzeugt werden. |
+| `UI_HEAD` | Welcher Aufmerksamkeitskopf in der Heatmap gezeigt wird, 0 bis 3. |
+| `UI_SEED` | Startwert: gleicher Startwert und gleiche Eingaben ergeben denselben Text. |
+| `UI_STATUS` | Der laufende Stand der Erzeugung. |
+| `UI_OUTPUT` | Der bisher erzeugte Text. |
+| `UI_HEATMAP` | Das Aufmerksamkeitsraster des letzten Layers. |
+
+Der Knopf ist eine Form mit `OnAction = "Ui.Generate"`.
+
+Die Heatmap zeigt die Aufmerksamkeit des **letzten** Layers fuer den in
+`UI_HEAD` gewaehlten Kopf, als 64 mal 64 Raster mit einer Farbskala als
+bedingte Formatierung. Zeile = das Zeichen, das gerade dran ist; Spalte =
+worauf es zurueckschaut. Dass nur das untere Dreieck gefuellt ist, ist die
+kausale Maske.
+
+Alle Spalten sind schmal und gleich breit, damit das Raster quadratisch wird;
+Beschriftungen und Eingabefelder ueberspannen deshalb mehrere Spalten.
+
+Die Erzeugungsschleife liegt in `Ui.Generate` und nicht in `Sampler.Generate`,
+weil sie nach jedem Token Ausgabe, Status und Heatmap auffrischt und
+`DoEvents` aufruft. `Sampler.Generate` bleibt die Variante ohne Blattverkehr,
+die die Pruefung benutzt.
+
+Gemessenes Tempo: rund eine halbe Sekunde je Token bei kurzem Kontext, gegen
+eine Sekunde, wenn das Kontextfenster voll ist.
+
 ## Verifikation
 
 `verify_vba.py` prueft in zwei Stufen: erst jeden Baustein einzeln ueber
@@ -342,6 +387,12 @@ Ursache.
 Exit-Code 1 bei jeder Abweichung, damit sich das Skript als Gate verwenden
 laesst.
 
+`inject_vba.py` prueft die Quellen, bevor die Tabellenkalkulation ueberhaupt
+startet, und weist Variablen zurueck, die nie deklariert wurden, sowie Namen,
+die mit reservierten Woertern kollidieren. Der Grund gehoert dazu: uebersetzt
+wird prozedurweise, ein solcher Fehler faellt sonst erst auf, wenn die
+betroffene Prozedur zum ersten Mal laeuft.
+
 ## Fallstricke
 
 1. **`Scale` ist ein reserviertes Wort.** `Dim scale As Double` ist ein
@@ -353,3 +404,11 @@ laesst.
 3. **Der Funktionsname in einer Argumentliste** wird als rekursiver Aufruf
    gelesen, nicht als Rueckgabewert. Zwischenwerte brauchen eine eigene
    Variable.
+4. **Ein verbundener Bereich liefert ueber `Value2` ein Array**, keinen
+   Einzelwert. Jede Umwandlung daraus scheitert mit "Typen unvertraeglich".
+   Bedienelemente werden deshalb ueber ihre linke obere Zelle gelesen.
+5. **Das Gitternetz haengt am Fenster**, nicht am Blatt. Das Fenster, in dem
+   das Layout gebaut wird, ist nicht das, in dem spaeter jemand sitzt —
+   deshalb wird die Ansicht beim Oeffnen der Datei gesetzt.
+6. **Beim Loeschen aus einer Collection waehrend der Iteration** ueberspringt
+   die Sprache Eintraege. Rueckwaerts ueber den Index laufen.
