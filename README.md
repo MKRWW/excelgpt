@@ -10,6 +10,10 @@ sind die Referenz, gegen die eine unabhaengige Reimplementierung Layer fuer
 Layer verglichen wird — deshalb ist nicht die Modellqualitaet der Kern,
 sondern die Nachvollziehbarkeit und Exaktheit der Konventionen.
 
+Wer das fertige Modell bedienen will: **[PROMPTING.md](PROMPTING.md)** erklaert, warum
+Anweisungen nicht funktionieren, welche Prompts stattdessen etwas taugen und was die
+Temperatur macht.
+
 ## Setup
 
 ```
