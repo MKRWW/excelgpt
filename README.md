@@ -177,13 +177,30 @@ Tausenderpunkt statt als Fließkommazahl interpretiert).
 
 ## Arbeitsmappe
 
-Nach dem Dump kommen die Gewichte in eine Excel-Arbeitsmappe. Die zwei
-zusatzlichen Kommandos in dieser Reihenfolge:
+Nach dem Dump kommen die Gewichte in eine Excel-Arbeitsmappe. Die vier
+Kommandos in dieser Reihenfolge:
 
 ```
 uv run python export_weights.py
 uv run python build_workbook.py
+uv run python inject_vba.py
+uv run python verify_vba.py
 ```
+
+- `export_weights.py` schreibt die 54 Gewichtstensoren des Checkpoints als
+  CSV-Dateien nach `export/` (dazu `manifest.csv`, `vocab.csv` und
+  `config.csv`).
+- `build_workbook.py` legt diese CSVs als die benannten Bereiche in die
+  Arbeitsmappe `build/excelgpt.xlsm` ab.
+- `inject_vba.py` importiert die fuenf Makromodule aus `vba/` in das
+  VBA-Projekt der Arbeitsmappe (Austausch statt Hinzufuegen, dazu die
+  Blaetter `97_Trace` und `98_Probe`) und speichert das Ergebnis als `.xlsm`.
+  Das Skript setzt im Trust Center die Einstellung "Zugriff auf das
+  VBA-Projektobjektmodell vertrauen" voraus; ohne sie bricht es mit einem
+  Rechtefehler ab.
+- `verify_vba.py` fuehrt den Vorwaertsdurchlauf mit Mitschnitt aller
+  Zwischenergebnisse in der Arbeitsmappe aus und vergleicht jeden Tensor
+  gegen `reference/`.
 
 Blattaufteilung (Blattreihenfolge exakt wie in der Tabelle):
 
@@ -276,3 +293,63 @@ VBA adressiert die Gewichte ausschliesslich ueber diese benannten Bereiche,
 nie ueber Zelladressen — ein Umbenennen eines Bereichs bricht den Port. Die
 Arbeitsmappe wird als `.xlsm` gespeichert, damit in der naechsten Stufe
 VBA-Code hinzukommen kann.
+
+## Makrocode
+
+Fuenf Module, in der Reihenfolge, wie `inject_vba.py` sie in das Projekt
+importiert:
+
+| Modul | Zweck |
+|---|---|
+| `Mat` | Matrix-Grundbausteine und blockweiser Zellzugriff. |
+| `Nn` | LayerNorm, Softmax, GELU, kausale Maske. |
+| `Gpt` | Gewichts-Cache, Embedding-Lookup, Attention, Bloecke, Durchlauf. |
+| `Sampler` | Ziehen mit Temperatur, autoregressive Schleife. |
+| `Probe` | Einzeleinstiege fuer die Pruefung. |
+
+Der Code liegt als Text unter `vba/` und wird ausschliesslich vom Skript
+`inject_vba.py` in die Arbeitsmappe gebracht. Nichts wird im Editor getippt
+— sonst waere der Stand der Arbeitsmappe nicht mehr aus dem Repository
+herstellbar.
+
+Array-Konvention, die im gesamten Makrocode gilt: 1-basierte Double-Arrays
+der Form (Zeile, Spalte), Zeile = Zeitschritt. Gegenueber dem
+Referenzmodell, das ab null zaehlt, gilt die Verschiebung um eins:
+Token-ID `i` steht in Zeile `i+1`.
+
+Regel zum Zellzugriff: immer ein ganzer Bereich auf einmal in ein Array,
+gerechnet wird im Speicher, geschrieben wird einmal. Die Gewichte werden
+**einmal** geladen und gehalten; sie je Token neu zu lesen waeren 818241
+Zellzugriffe pro Schritt.
+
+## Verifikation
+
+`verify_vba.py` prueft in zwei Stufen: erst jeden Baustein einzeln ueber
+das Probe-Modul, dann den gesamten Stapel gegen alle 156 Zwischentensoren
+aus `reference/`.
+
+Standard-Toleranz 1e-4, ueber `--tol` aenderbar; `--prompt` waehlt den
+Prompt (Standard ist der des Dumps: `To be, or not to be`), `--verbose`
+listet jeden Tensor statt nur der auffaelligen. Gemessener Stand: groesste
+Abweichung 1.1e-06 bei den Bausteinen und 6.1e-06 ueber den ganzen Stapel.
+
+Bei einem Fehlschlag nennt das Skript den **fruehesten** abweichenden
+Tensor in Rechenreihenfolge, nicht den mit der groessten Abweichung.
+Alles hinter einer falschen Zwischenstufe ist Folge davon; wer die groesste
+Abweichung jagt, sucht typischerweise mehrere Schichten hinter der
+Ursache.
+
+Exit-Code 1 bei jeder Abweichung, damit sich das Skript als Gate verwenden
+laesst.
+
+## Fallstricke
+
+1. **`Scale` ist ein reserviertes Wort.** `Dim scale As Double` ist ein
+   Syntaxfehler.
+2. **Uebersetzt wird prozedurweise.** Ein Syntaxfehler in einer Funktion
+   faellt erst auf, wenn sie zum ersten Mal aufgerufen wird — ein
+   Rauchtest muss deshalb einmal durch den gesamten Stapel laufen, nicht
+   nur eine Hilfsfunktion aufrufen.
+3. **Der Funktionsname in einer Argumentliste** wird als rekursiver Aufruf
+   gelesen, nicht als Rueckgabewert. Zwischenwerte brauchen eine eigene
+   Variable.
